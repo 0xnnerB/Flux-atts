@@ -1097,7 +1097,9 @@
         updateNetworkUI();
         // Update balance if wallet connected
         if (userAddress) {
-            updateBalanceForDirection();
+            updateBalanceForDirection().catch(e => {
+                console.warn('Error updating balance after swap:', e);
+            });
         }
     }
     
@@ -1224,6 +1226,12 @@
     let disclaimerAccepted = localStorage.getItem('fluxshift_disclaimer_accepted') === 'true';
     
     async function connectWallet() {
+        // If already connected, just show the bridge
+        if (userAddress) {
+            showBridge();
+            return;
+        }
+        
         // Show security disclaimer first if not accepted
         if (!disclaimerAccepted) {
             showSecurityDisclaimerForConnect();
@@ -2121,14 +2129,21 @@
                 $('walletInfo').classList.add('hidden');
                 $('bridgeForm').classList.add('hidden');
             } else if (accounts[0].toLowerCase() !== (userAddress || '').toLowerCase()) {
-                // Account changed - refresh the page to reset state
-                location.reload();
+                // Account changed - update userAddress and refresh balance
+                userAddress = accounts[0];
+                const shortAddr = userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
+                $('walletShort').textContent = shortAddr;
+                $('walletAddress').textContent = userAddress;
+                updateBalanceForDirection();
+                updatePendingIndicator();
             }
         });
         
         window.ethereum.on('chainChanged', function() {
-            // Chain changed - refresh to update balances
-            location.reload();
+            // Chain changed - just update balance, don't reload
+            if (userAddress) {
+                updateBalanceForDirection();
+            }
         });
     }
     
