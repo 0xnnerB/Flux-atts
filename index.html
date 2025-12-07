@@ -744,10 +744,9 @@
     
     function updatePendingIndicator() {
         const allPending = getPendingTxs();
-        // SECURITY: Only count transactions belonging to the connected wallet
         const userPending = userAddress 
             ? allPending.filter(tx => tx.sender && tx.sender.toLowerCase() === userAddress.toLowerCase())
-            : [];
+            : allPending;
         const readyTxs = userPending.filter(tx => tx.status === 'ready_to_mint');
         if (readyTxs.length > 0) {
             $('pendingIndicator').classList.remove('hidden');
@@ -758,12 +757,10 @@
     
     // ======= PENDING MODAL (Action Needed) =======
     function showPendingModal() {
-        // SECURITY: Only show transactions belonging to the connected wallet
         const allPending = getPendingTxs().filter(tx => tx.status === 'ready_to_mint');
         const pending = userAddress 
             ? allPending.filter(tx => tx.sender && tx.sender.toLowerCase() === userAddress.toLowerCase())
-            : [];
-        
+            : allPending;
         const listEl = $('pendingList');
         const noMsgEl = $('noPendingMsg');
         
@@ -815,17 +812,14 @@
     
     function showHistoryTab(tab) {
         currentHistoryTab = tab;
-        
-        // SECURITY: Only show transactions belonging to the connected wallet
         const allPending = getPendingTxs();
         const allCompleted = getCompletedTxs();
-        
         const pending = userAddress 
             ? allPending.filter(tx => tx.sender && tx.sender.toLowerCase() === userAddress.toLowerCase())
-            : [];
+            : allPending;
         const completed = userAddress 
             ? allCompleted.filter(tx => tx.sender && tx.sender.toLowerCase() === userAddress.toLowerCase())
-            : [];
+            : allCompleted;
         
         // Update tab styles
         $('historyTabPending').className = tab === 'pending' 
@@ -945,9 +939,9 @@
             await connectWallet();
         }
         
-        // SECURITY: Verify the connected wallet is the original sender
-        if (!tx.sender || tx.sender.toLowerCase() !== userAddress.toLowerCase()) {
-            alert('⚠️ Security Error: Only the wallet that initiated this transaction can complete the mint.\n\nExpected: ' + (tx.sender || 'unknown') + '\nConnected: ' + userAddress);
+        // Security: verify sender matches connected wallet
+        if (tx.sender && tx.sender.toLowerCase() !== userAddress.toLowerCase()) {
+            alert('⚠️ Security: This transaction belongs to a different wallet.\n\nExpected: ' + tx.sender + '\nConnected: ' + userAddress);
             return;
         }
         
@@ -1019,9 +1013,9 @@
             return;
         }
         
-        // SECURITY: Verify the connected wallet is the original sender
-        if (!currentPendingTx.sender || currentPendingTx.sender.toLowerCase() !== userAddress.toLowerCase()) {
-            alert('⚠️ Security Error: Only the wallet that initiated this transaction can complete the mint.\n\nExpected: ' + (currentPendingTx.sender || 'unknown') + '\nConnected: ' + userAddress);
+        // Security: verify sender matches connected wallet
+        if (currentPendingTx.sender && currentPendingTx.sender.toLowerCase() !== userAddress.toLowerCase()) {
+            alert('⚠️ Security: This transaction belongs to a different wallet.\n\nExpected: ' + currentPendingTx.sender + '\nConnected: ' + userAddress);
             return;
         }
         
@@ -1312,9 +1306,6 @@
             
             // Hide header connect button (wallet indicator shows the address)
             $('headerConnectBtn').classList.add('hidden');
-            
-            // Update pending indicator for this specific wallet
-            updatePendingIndicator();
 
             // show form
             $('bridgeForm').classList.remove('hidden');
@@ -1359,7 +1350,7 @@
                     direction: bridgeDirection,
                     sourceDomain,
                     recipient,
-                    sender: userAddress, // CRITICAL: Save the sender address
+                    sender: userAddress,
                     timestamp: Date.now(),
                     status: 'waiting_attestation'
                 };
@@ -1389,7 +1380,7 @@
                     direction: bridgeDirection,
                     sourceDomain,
                     recipient,
-                    sender: userAddress, // CRITICAL: Save the sender address
+                    sender: userAddress,
                     timestamp: Date.now(),
                     status: 'waiting_attestation'
                 };
@@ -2107,30 +2098,6 @@
         }
         updatePendingIndicator();
     })();
-    
-    // Listen for account changes (user switches wallet or disconnects)
-    if (window.ethereum) {
-        window.ethereum.on('accountsChanged', function(accounts) {
-            if (accounts.length === 0) {
-                // Wallet disconnected
-                userAddress = null;
-                $('walletIndicator').classList.add('hidden');
-                $('headerConnectBtn').classList.remove('hidden');
-                $('pendingIndicator').classList.add('hidden');
-                $('connectWalletBtn').classList.remove('hidden');
-                $('walletInfo').classList.add('hidden');
-                $('bridgeForm').classList.add('hidden');
-            } else if (accounts[0].toLowerCase() !== (userAddress || '').toLowerCase()) {
-                // Account changed - refresh the page to reset state
-                location.reload();
-            }
-        });
-        
-        window.ethereum.on('chainChanged', function() {
-            // Chain changed - refresh to update balances
-            location.reload();
-        });
-    }
     
     console.log('✅ FluxShift - script loaded', CONFIG);
     </script>
