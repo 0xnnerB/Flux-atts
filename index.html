@@ -1868,15 +1868,24 @@
             }
             
             // Small delay to ensure wallet has switched
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 1500));
             
+            // Recreate provider after network switch
             provider = new ethers.providers.Web3Provider(window.ethereum);
             signer = provider.getSigner();
             
-            // Verify we're on the right network
-            const network = await provider.getNetwork();
+            // Verify we're on the right network (with retry)
+            let network = await provider.getNetwork();
             if (network.chainId !== CONFIG.SEPOLIA.CHAIN_ID) {
-                throw new Error('Wallet is not on Sepolia network. Please switch manually and try again.');
+                // Wait a bit more and try again
+                await new Promise(r => setTimeout(r, 1000));
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                signer = provider.getSigner();
+                network = await provider.getNetwork();
+                
+                if (network.chainId !== CONFIG.SEPOLIA.CHAIN_ID) {
+                    throw new Error('Wallet is not on Sepolia network. Please switch manually and try again.');
+                }
             }
             
             // Check ETH balance on Sepolia for gas
@@ -1994,17 +2003,25 @@
                 }
             }
             
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 1500));
             
             // Recreate provider and signer after network switch
             provider = new ethers.providers.Web3Provider(window.ethereum);
             signer = provider.getSigner();
             
-            // Verify we're on Arc network
-            const network = await provider.getNetwork();
+            // Verify we're on Arc network (with retry)
+            let network = await provider.getNetwork();
             console.log('Current network:', network);
             if (network.chainId !== CONFIG.ARC.CHAIN_ID) {
-                throw new Error('Wallet is not on Arc Testnet (chainId: ' + network.chainId + '). Please switch manually and try again.');
+                // Wait a bit more and try again
+                await new Promise(r => setTimeout(r, 1000));
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                signer = provider.getSigner();
+                network = await provider.getNetwork();
+                
+                if (network.chainId !== CONFIG.ARC.CHAIN_ID) {
+                    throw new Error('Wallet is not on Arc Testnet (chainId: ' + network.chainId + '). Please switch manually and try again.');
+                }
             }
             
             // Check USDC balance for gas (Arc uses USDC as native gas)
@@ -2129,20 +2146,32 @@
                 $('walletInfo').classList.add('hidden');
                 $('bridgeForm').classList.add('hidden');
             } else if (accounts[0].toLowerCase() !== (userAddress || '').toLowerCase()) {
-                // Account changed - update userAddress and refresh balance
-                userAddress = accounts[0];
-                const shortAddr = userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
-                $('walletShort').textContent = shortAddr;
-                $('walletAddress').textContent = userAddress;
-                updateBalanceForDirection();
-                updatePendingIndicator();
+                // Account changed - update provider, signer, userAddress and refresh balance
+                try {
+                    provider = new ethers.providers.Web3Provider(window.ethereum);
+                    signer = provider.getSigner();
+                    userAddress = accounts[0];
+                    const shortAddr = userAddress.slice(0, 6) + '...' + userAddress.slice(-4);
+                    $('walletShort').textContent = shortAddr;
+                    $('walletAddress').textContent = userAddress;
+                    updateBalanceForDirection();
+                    updatePendingIndicator();
+                } catch (e) {
+                    console.warn('Error updating after account change:', e);
+                }
             }
         });
         
-        window.ethereum.on('chainChanged', function() {
-            // Chain changed - just update balance, don't reload
+        window.ethereum.on('chainChanged', async function() {
+            // Chain changed - recreate provider/signer and update balance
             if (userAddress) {
-                updateBalanceForDirection();
+                try {
+                    provider = new ethers.providers.Web3Provider(window.ethereum);
+                    signer = provider.getSigner();
+                    await updateBalanceForDirection();
+                } catch (e) {
+                    console.warn('Error updating after chain change:', e);
+                }
             }
         });
     }
